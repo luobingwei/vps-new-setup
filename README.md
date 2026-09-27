@@ -2,6 +2,19 @@
 
 一键为**新买的 VPS** 初始化环境。内置常用 VPS 部署的 5 步操作。支持 Debian/Ubuntu、CentOS/Rocky/Alma/Fedora。
 
+## 🚀 一键执行（在 VPS 上以 root / sudo 运行）
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/luobingwei/vps-new-setup/main/setup.sh | sudo bash
+```
+
+- 默认弹出**勾选式菜单**，只装你勾选的模块；
+- 会自动**预检环境**，缺 git/curl 等自动补装，保证全新 VPS 可直接跑；
+- 想要**全自动**（跳过菜单，按配置文件默认值执行）：
+  ```bash
+  curl -fsSL https://raw.githubusercontent.com/luobingwei/vps-new-setup/main/setup.sh | sudo bash -s -- --auto
+  ```
+
 ## 核心 5 步
 
 | 模块 | 作用 | 说明 |
@@ -28,11 +41,6 @@ bash setup.sh                     # 默认：环境预检 + 终端勾选式菜�
 bash setup.sh --auto              # 全自动，跳过菜单与交互（用配置里的值）
 bash setup.sh -m swap,ssh,zsh     # 只跑指定模块
 bash setup.sh --dry-run           # 预览将要执行的操作
-```
-
-**一行安装（GitHub 已发布后）**：
-```bash
-curl -fsSL https://raw.githubusercontent.com/luobingwei/vps-new-setup/main/setup.sh | sudo bash
 ```
 
 **运行前自动预检环境**：工具会先检查必需工具（curl/wget/git/sysctl/crontab 等），**缺失的会自动用包管理器安装好**（比如 git、curl），装不上才报错停止；同时检查磁盘空间能否支撑 swap——保证一台全新 VPS 能顺利跑起来。

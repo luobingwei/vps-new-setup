@@ -87,7 +87,7 @@ require_root() {
 confirm() {
   [[ "$AUTO_YES" == true ]] && return 0
   local prompt="$1"
-  read -r -p "$prompt [y/N] " ans
+  read -r -p "$prompt [y/N] " ans </dev/tty || ans=""
   [[ "$ans" =~ ^[Yy]$ ]]
 }
 
@@ -278,7 +278,7 @@ pure_bash_menu() {
       for t in "${toggled[@]}"; do [[ "$t" == "${names[$i]}" ]] && mark="x"; done
       printf "    %2d) [%s] %-11s %s\n" $((i + 1)) "$mark" "${names[$i]}" "$(module_label "${names[$i]}")"
     done
-    read -r -p "    > " ch
+    read -r -p "    > " ch </dev/tty || ch=""
     [[ "$ch" == "q" ]] && break
     [[ "$ch" == "a" ]] && { toggled=("${names[@]}"); continue; }
     [[ "$ch" == "n" ]] && { toggled=(); continue; }
@@ -433,11 +433,11 @@ setup_ssh() {
   # 配置为空 → 交互时提示输入；输入为空/拉不到公钥 → 跳过 SSH 模块，不阻塞后续安装
   if [[ -z "$SSH_GITHUB_USER" ]]; then
     if [[ "$AUTO_YES" != true ]]; then
-      read -r -p "请输入 GitHub 用户名（用于拉取公钥 https://github.com/<用户名>.keys；留空则跳过 SSH 配置）: " SSH_GITHUB_USER
+      read -r -p "请输入 GitHub 用户名（用于拉取公钥 https://github.com/<用户名>.keys；留空则跳过 SSH 配置）: " SSH_GITHUB_USER </dev/tty || SSH_GITHUB_USER=""
     fi
   elif [[ "$AUTO_YES" != true ]]; then
     local input=""
-    read -r -p "请输入 GitHub 用户名（用于拉取公钥；回车用默认 ${SSH_GITHUB_USER}，留空并回车跳过）: " input
+    read -r -p "请输入 GitHub 用户名（用于拉取公钥；回车用默认 ${SSH_GITHUB_USER}，留空并回车跳过）: " input </dev/tty || input=""
     if [[ -z "$input" ]]; then
       warn "未输入用户名，跳过 SSH 配置。"
       return 0

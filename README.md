@@ -24,7 +24,7 @@ curl -fsSL https://raw.githubusercontent.com/luobingwei/vps-new-setup/main/setup
 | bbr | 原生启用 BBR+FQ（内核≥6.8 即 BBRv3），默认不装第三方内核 | 安全原生实现 |
 | reboot | 每天凌晨 4 点自动重启 | 写入 crontab，幂等 |
 | ssh | 从 GitHub 拉公钥 + 改端口 + 仅密钥登录 | 用户名交互输入，默认端口 2222 |
-| zsh | Zsh + Oh My Zsh + powerlevel10k，应用配置、跳过向导 | 默认通用配置，可放自己的 |
+| zsh | Zsh + Oh My Zsh + powerlevel10k，应用配置、跳过向导，装完自动切 zsh | 内置 conf/p10k.zsh（单行 rainbow） |
 
 ## 使用方法
 
@@ -69,13 +69,15 @@ SWAP_METHOD="native"
 SSH_GITHUB_USER=""
 SSH_PORT="2222"
 
-# p10k 配置：默认用内置通用配置；想用自己的就填 URL，或放到 conf/p10k.zsh（已被 gitignore）
+# p10k 配置：默认用随仓库发布的 conf/p10k.zsh（单行 rainbow，可自定义覆盖）；想用自己的就填 URL，或替换 conf/p10k.zsh
 P10K_CONFIG_URL=""
 
 # 启用的 zsh 插件（空格分隔）。zsh-* 会自动额外安装；其余为 oh-my-zsh 内置
 ZSH_PLUGINS="git zsh-autosuggestions zsh-syntax-highlighting zsh-history-substring-search"
 ```
 
+> **装完自动切换默认 shell 为 zsh**（chsh，缺 /etc/shells 自动补；失败用 usermod 兜底），重新登录或新开终端即进入 zsh。
+>
 > **已启用插件**：`git` + `zsh-autosuggestions`（cd 时灰色路径提示）+ `zsh-syntax-highlighting` + `zsh-history-substring-search`（↑↓模糊搜历史）。想加 `sudo`/`extract`/`systemd`/`docker`/`command-not-found` 等，直接写进 `ZSH_PLUGINS` 即可。
 
 ## 安全说明

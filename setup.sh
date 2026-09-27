@@ -49,7 +49,7 @@ load_config
 # 默认值（配置缺失时生效）
 SETUP_SWAP="${SETUP_SWAP:-true}"
 SWAP_METHOD="${SWAP_METHOD:-native}"
-SWAP_SIZE="${SWAP_SIZE:-2G}"
+SWAP_SIZE="${SWAP_SIZE:-auto}"
 SETUP_BBR="${SETUP_BBR:-true}"
 BBR_METHOD="${BBR_METHOD:-native}"
 BBR_SCRIPT_URL="${BBR_SCRIPT_URL:-https://raw.githubusercontent.com/byJoey/Actions-bbr-v3/main/install.sh}"
@@ -64,6 +64,23 @@ INSTALL_ZSH="${INSTALL_ZSH:-true}"
 # 要启用的 zsh 插件（空格分隔）。前 6 个为 oh-my-zsh 内置；zsh-* 开头的会自动额外安装
 ZSH_PLUGINS="${ZSH_PLUGINS:-git zsh-autosuggestions zsh-syntax-highlighting zsh-history-substring-search}"
 P10K_CONFIG_URL="${P10K_CONFIG_URL:-}"
+
+# ---------------- swap 大小：auto 按内存自动计算 ----------------
+# auto：≤2G 内存→2×内存；2-4G→=内存(4G内存给4G swap)；>4G→封顶4G。
+# 显式指定（如 2G / 512M）则原样使用，不自动计算。
+resolve_swap_size() {
+  local s="${SWAP_SIZE:-auto}"
+  [[ "$s" != "auto" ]] && { echo "$s"; return 0; }
+  local total_mb ram_gb
+  total_mb="$(free -m 2>/dev/null | awk '/^Mem:/{print $2; exit}')"
+  total_mb="${total_mb:-0}"
+  if (( total_mb <= 0 )); then echo "1G"; return 0; fi
+  ram_gb=$(( (total_mb + 512) / 1024 ))   # 四舍五入到整 G
+  if   (( ram_gb <= 2 )); then echo "$(( ram_gb * 2 ))G"
+  elif (( ram_gb <= 4 )); then echo "${ram_gb}G"
+  else                           echo "4G"; fi
+}
+SWAP_SIZE="$(resolve_swap_size)"
 
 # ---------------- 全局变量 ----------------
 AUTO_YES=false
@@ -521,7 +538,7 @@ install_zsh() {
   [[ "$INSTALL_ZSH" != "true" ]] && return 0
   info "安装 Zsh + Oh My Zsh + powerlevel10k（应用配置，跳过向导）..."
   if $DRY_RUN; then
-    echo "  (dry) 安装 zsh / oh-my-zsh / p10k 主题 / 插件，写入 .p10k.zsh"
+    echo "  (dry) 安装 zsh / oh-my-zsh / p10k 主题 / 插件，写入 .p10k.zsh，并切换默认 shell 为 zsh"
     return 0
   fi
 
@@ -565,8 +582,23 @@ install_zsh() {
   # 写入 p10k 配置（不走向导）
   apply_p10k_config
 
-  chsh -s "$(command -v zsh)" "${SUDO_USER:-$USER}" 2>/dev/null || true
-  log "Zsh + p10k 安装完成，已应用配置并跳过向导"
+  # 装完自动切换默认 shell 为 zsh（chsh 校验 /etc/shells，缺了就补；失败用 usermod 兜底）
+  local zh tgt
+  zh="$(command -v zsh)"; zh="${zh:-/usr/bin/zsh}"
+  if [[ -x "$zh" ]]; then
+    grep -qxF "$zh" /etc/shells 2>/dev/null || echo "$zh" >> /etc/shells
+    tgt="${SUDO_USER:-$USER}"; tgt="${tgt:-root}"
+    if command -v chsh >/dev/null 2>&1 && chsh -s "$zh" "$tgt" 2>/dev/null; then
+      log "默认 shell 已切换为 zsh（${tgt}），重新登录或新开终端即生效。"
+    elif command -v usermod >/dev/null 2>&1 && [[ "$(getent passwd "$tgt" 2>/dev/null | cut -d: -f7)" != "$zh" ]]; then
+      usermod -s "$zh" "$tgt" 2>/dev/null && log "默认 shell 已切换为 zsh（${tgt}，usermod）。" || warn "切换默认 shell 失败，请手动执行: chsh -s $zh $tgt"
+    else
+      warn "未能切换默认 shell，请手动执行: chsh -s $zh $tgt"
+    fi
+  else
+    warn "未找到 zsh，跳过切换默认 shell。"
+  fi
+  log "Zsh + p10k 安装完成，已应用配置、已切到 zsh 并跳过向导"
 }
 
 apply_p10k_config() {

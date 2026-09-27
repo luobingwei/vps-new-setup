@@ -280,13 +280,19 @@ pure_bash_menu() {
   done
   while true; do
     echo
-    echo "  vps-setup 模块选择（输入序号切换勾选，a=全选 n=全不选 q=确认并开始）："
+    echo "  vps-setup 模块选择："
     for i in "${!names[@]}"; do
       mark=" "
       for t in "${toggled[@]}"; do [[ "$t" == "${names[$i]}" ]] && mark="x"; done
       printf "    %2d) [%s] %-11s %s\n" $((i + 1)) "$mark" "${names[$i]}" "$(module_label "${names[$i]}")"
     done
-    read -r -p "    > " ch </dev/tty || ch=""
+    echo
+    printf "  Choice: 1-${#names[@]} 切换勾选 / a 全选 / n 全不选 / q 确认并开始: "
+    if ! read -r ch </dev/tty; then
+      warn "无法进行交互选择，按当前勾选模块继续。"
+      break
+    fi
+    ch="${ch:-}"
     [[ "$ch" == "q" ]] && break
     [[ "$ch" == "a" ]] && { toggled=("${names[@]}"); continue; }
     [[ "$ch" == "n" ]] && { toggled=(); continue; }
@@ -299,6 +305,8 @@ pure_bash_menu() {
       done
       [[ "$found" -eq 0 ]] && nt+=("${names[$idx]}")
       toggled=("${nt[@]}")
+    else
+      echo "  无效输入，请输数字(1-${#names[@]})或 a/n/q"
     fi
   done
   ONLY_MODULES=("${toggled[@]}")

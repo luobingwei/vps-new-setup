@@ -2,17 +2,18 @@
 
 一键为**新买的 VPS** 初始化环境。内置常用 VPS 部署的 5 步操作。支持 Debian/Ubuntu、CentOS/Rocky/Alma/Fedora。
 
-## 🚀 一键执行（在 VPS 上以 root / sudo 运行）
+## 🚀 一键执行（在 VPS 上运行）
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/luobingwei/vps-new-setup/main/setup.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/luobingwei/vps-new-setup/main/setup.sh | bash
 ```
 
+> 脚本会自动识别权限：以 root 运行则直接执行，非 root 则内部自动用 sudo；无需手动加 sudo。
 - 默认弹出**勾选式菜单**，只装你勾选的模块；
 - 会自动**预检环境**，缺 git/curl 等自动补装，保证全新 VPS 可直接跑；
 - 想要**全自动**（跳过菜单，按配置文件默认值执行）：
   ```bash
-  curl -fsSL https://raw.githubusercontent.com/luobingwei/vps-new-setup/main/setup.sh | sudo bash -s -- --auto
+  curl -fsSL https://raw.githubusercontent.com/luobingwei/vps-new-setup/main/setup.sh | bash -s -- --auto
   ```
 
 ## 核心 5 步

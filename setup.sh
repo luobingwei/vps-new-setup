@@ -24,6 +24,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONF_FILE="${SCRIPT_DIR}/conf/setup.conf"
 LOG_FILE="/var/log/vps-setup.log"
 
+# 兜底终端类型：避免 whiptail 在部分终端(如网页/VNC 控制台、TERM 为空或 dumb)渲染异常
+if [[ -z "$TERM" || "$TERM" == "dumb" ]]; then
+  export TERM="${TERM:-xterm}"
+fi
+
 # ---------------- 配置加载 ----------------
 load_config() {
   if [[ ! -f "$CONF_FILE" ]]; then
@@ -53,22 +58,13 @@ INSTALL_ZSH="${INSTALL_ZSH:-true}"
 # 要启用的 zsh 插件（空格分隔）。前 6 个为 oh-my-zsh 内置；zsh-* 开头的会自动额外安装
 ZSH_PLUGINS="${ZSH_PLUGINS:-git zsh-autosuggestions zsh-syntax-highlighting zsh-history-substring-search}"
 P10K_CONFIG_URL="${P10K_CONFIG_URL:-}"
-INSTALL_BASIC_TOOLS="${INSTALL_BASIC_TOOLS:-true}"
-INSTALL_DOCKER="${INSTALL_DOCKER:-true}"
-INSTALL_NODE="${INSTALL_NODE:-true}"
-NODE_VERSION="${NODE_VERSION:-lts}"
-INSTALL_PYTHON="${INSTALL_PYTHON:-true}"
-INSTALL_GO="${INSTALL_GO:-false}"
-GO_VERSION="${GO_VERSION:-latest}"
-SETUP_FIREWALL="${SETUP_FIREWALL:-true}"
-ENABLE_FAIL2BAN="${ENABLE_FAIL2BAN:-true}"
 
 # ---------------- 全局变量 ----------------
 AUTO_YES=false
 DRY_RUN=false
 INTERACTIVE_MENU=false
 declare -a ONLY_MODULES=()
-FULL_MODULES=("swap" "bbr" "reboot" "ssh" "zsh" "basic" "docker" "node" "python" "go" "firewall" "fail2ban")
+FULL_MODULES=("swap" "bbr" "reboot" "ssh" "zsh")
 
 # ---------------- 基础函数 ----------------
 log()  { printf '\033[1;32m[ ✔ ]\033[0m %s\n' "$*" | tee -a "$LOG_FILE"; }
@@ -248,13 +244,6 @@ module_label() {
     reboot) echo "每日4点自动重启" ;;
     ssh)  echo "SSH 密钥+改端口2222" ;;
     zsh)  echo "Zsh + OhMyZsh + p10k" ;;
-    basic) echo "系统基础工具" ;;
-    docker) echo "Docker + Compose" ;;
-    node) echo "Node.js (nvm)" ;;
-    python) echo "Python3 + pip" ;;
-    go)   echo "Go 语言" ;;
-    firewall) echo "防火墙(UFW/firewalld)" ;;
-    fail2ban) echo "fail2ban 防暴力破解" ;;
     *) echo "$1" ;;
   esac
 }
@@ -268,13 +257,6 @@ module_default_on() {
     reboot) v="$SETUP_DAILY_REBOOT" ;;
     ssh)  v="$SETUP_SSH" ;;
     zsh)  v="$INSTALL_ZSH" ;;
-    basic) v="$INSTALL_BASIC_TOOLS" ;;
-    docker) v="$INSTALL_DOCKER" ;;
-    node) v="$INSTALL_NODE" ;;
-    python) v="$INSTALL_PYTHON" ;;
-    go)   v="$INSTALL_GO" ;;
-    firewall) v="$SETUP_FIREWALL" ;;
-    fail2ban) v="$ENABLE_FAIL2BAN" ;;
     *) v="false" ;;
   esac
   [[ "$v" == "true" ]] && echo "true" || echo "false"
@@ -316,8 +298,9 @@ pure_bash_menu() {
 
 # 主菜单：优先 whiptail 勾选界面，否则纯 bash 降级
 show_module_menu() {
-  local -a names=(swap bbr reboot ssh zsh basic docker node python go firewall fail2ban)
-  if command -v whiptail >/dev/null 2>&1; then
+  local -a names=(swap bbr reboot ssh zsh)
+  # 环境变量 VPS_SETUP_MENU=plain 可强制走纯文本菜单（兼容 whiptail 渲染异常的终端）
+  if [[ "${VPS_SETUP_MENU:-whiptail}" != "plain" ]] && command -v whiptail >/dev/null 2>&1; then
     local -a items=()
     local n st
     for n in "${names[@]}"; do
@@ -623,141 +606,6 @@ P10K_EOF
 #  可选：开发/安全环境
 # ============================================================
 
-install_basic_tools() {
-  module_enabled basic || return 0
-  [[ "$INSTALL_BASIC_TOOLS" != "true" ]] && return 0
-  info "安装系统基础工具..."
-  if $DRY_RUN; then echo "  (dry) 更新系统并安装基础工具"; return 0; fi
-  $PKG_UPDATE
-  case "$PKG_MANAGER" in
-    apt) $PKG_INSTALL curl wget git vim htop tmux tree unzip zip jq ca-certificates software-properties-common rsync net-tools ;;
-    dnf|yum) $PKG_INSTALL curl wget git vim htop tmux tree unzip zip jq epel-release rsync net-tools ;;
-  esac
-  log "基础工具安装完成"
-}
-
-install_node() {
-  module_enabled node || return 0
-  [[ "$INSTALL_NODE" != "true" ]] && return 0
-  if command_exists node; then info "Node.js 已安装: $(node -v 2>/dev/null)，跳过。"; return 0; fi
-  info "通过 nvm 安装 Node.js ($NODE_VERSION)..."
-  if $DRY_RUN; then echo "  (dry) 安装 nvm + Node ${NODE_VERSION}"; return 0; fi
-  if [[ ! -d "$HOME/.nvm" ]]; then
-    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
-  fi
-  export NVM_DIR="$HOME/.nvm"
-  # shellcheck disable=SC1091
-  [[ -s "$NVM_DIR/nvm.sh" ]] && . "$NVM_DIR/nvm.sh"
-  nvm install "$NODE_VERSION" >/dev/null 2>&1 || nvm install --lts
-  log "Node.js 安装完成: $(node -v)"
-}
-
-install_python() {
-  module_enabled python || return 0
-  [[ "$INSTALL_PYTHON" != "true" ]] && return 0
-  info "安装 Python3 与 pip..."
-  if $DRY_RUN; then echo "  (dry) 安装 python3 / pip3"; return 0; fi
-  case "$PKG_MANAGER" in
-    apt) $PKG_INSTALL python3 python3-pip python3-venv ;;
-    dnf|yum) $PKG_INSTALL python3 python3-pip ;;
-  esac
-  log "Python 安装完成: $(python3 --version 2>/dev/null || echo n/a)"
-}
-
-install_go() {
-  module_enabled go || return 0
-  [[ "$INSTALL_GO" != "true" ]] && return 0
-  if command_exists go; then info "Go 已安装: $(go version 2>/dev/null)，跳过。"; return 0; fi
-  info "安装 Go ($GO_VERSION)..."
-  if $DRY_RUN; then echo "  (dry) 安装 Go ${GO_VERSION}"; return 0; fi
-  local ver="$GO_VERSION"
-  [[ "$ver" == "latest" ]] && ver=$(curl -sL https://go.dev/VERSION?m=text | head -n1 | sed 's/^go//')
-  local arch
-  case "$(uname -m)" in
-    x86_64) arch=amd64 ;;
-    aarch64|arm64) arch=arm64 ;;
-    *) err "不支持的 CPU 架构: $(uname -m)"; return 1 ;;
-  esac
-  local tarball="go${ver}.linux-${arch}.tar.gz"
-  curl -sL "https://go.dev/dl/${tarball}" -o "/tmp/${tarball}"
-  rm -rf /usr/local/go
-  tar -C /usr/local -xzf "/tmp/${tarball}"
-  ln -sf /usr/local/go/bin/go /usr/local/bin/go
-  ln -sf /usr/local/go/bin/gofmt /usr/local/bin/gofmt
-  log "Go 安装完成: $(go version)"
-}
-
-install_docker() {
-  module_enabled docker || return 0
-  [[ "$INSTALL_DOCKER" != "true" ]] && return 0
-  if command_exists docker; then info "Docker 已安装，跳过。"; return 0; fi
-  info "安装 Docker 与 Compose 插件..."
-  if $DRY_RUN; then echo "  (dry) 安装 docker + docker compose"; return 0; fi
-  if [[ "$PKG_MANAGER" == "apt" ]]; then
-    install -m 0755 -d /etc/apt/keyrings
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg 2>/dev/null \
-      || curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-    chmod a+r /etc/apt/keyrings/docker.gpg
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/${OS_ID} $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
-      > /etc/apt/sources.list.d/docker.list
-    $PKG_UPDATE
-    $PKG_INSTALL docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-  else
-    $PKG_INSTALL -y dnf-plugins-core 2>/dev/null || true
-    dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo 2>/dev/null || true
-    $PKG_UPDATE
-    $PKG_INSTALL docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-  fi
-  systemctl enable --now docker 2>/dev/null || service docker start 2>/dev/null || true
-  if [[ -n "${SUDO_USER:-}" || -n "${USER:-}" ]]; then
-    usermod -aG docker "${SUDO_USER:-$USER}" 2>/dev/null && warn "已把用户加入 docker 组，重新登录后无需 sudo 即可使用 docker。" || true
-  fi
-  log "Docker 安装完成: $(docker --version 2>/dev/null || echo n/a)"
-}
-
-setup_firewall() {
-  module_enabled firewall || return 0
-  [[ "$SETUP_FIREWALL" != "true" ]] && return 0
-  info "配置防火墙（放行 SSH 端口 $SSH_PORT）..."
-  if $DRY_RUN; then echo "  (dry) 启用防火墙并放行 $SSH_PORT"; return 0; fi
-  case "$PKG_MANAGER" in
-    apt) $PKG_INSTALL ufw ;;
-    dnf|yum) $PKG_INSTALL firewalld ;;
-  esac
-  if [[ "$PKG_MANAGER" == "apt" ]]; then
-    ufw allow OpenSSH >/dev/null 2>&1 || true
-    ufw allow "${SSH_PORT}/tcp" >/dev/null 2>&1 || true
-    ufw --force enable >/dev/null 2>&1
-    log "UFW 已启用，放行 SSH($SSH_PORT)"
-  else
-    systemctl enable --now firewalld 2>/dev/null || true
-    firewall-cmd --permanent --add-service=ssh >/dev/null 2>&1 || true
-    firewall-cmd --permanent --add-port="${SSH_PORT}/tcp" >/dev/null 2>&1 || true
-    firewall-cmd --reload >/dev/null 2>&1 || true
-    log "firewalld 已启用，放行 SSH($SSH_PORT)"
-  fi
-}
-
-install_fail2ban() {
-  module_enabled fail2ban || return 0
-  [[ "$ENABLE_FAIL2BAN" != "true" ]] && return 0
-  if systemctl is-active fail2ban >/dev/null 2>&1; then info "fail2ban 已运行，跳过。"; return 0; fi
-  info "安装 fail2ban 防暴力破解..."
-  if $DRY_RUN; then echo "  (dry) 安装并启用 fail2ban"; return 0; fi
-  $PKG_INSTALL fail2ban
-  if [[ ! -f /etc/fail2ban/jail.local ]]; then
-    cat > /etc/fail2ban/jail.local <<'EOF'
-[DEFAULT]
-bantime = 3600
-findtime = 600
-maxretry = 5
-[sshd]
-enabled = true
-EOF
-  fi
-  systemctl enable --now fail2ban 2>/dev/null || service fail2ban restart 2>/dev/null || true
-  log "fail2ban 安装完成"
-}
 
 # ---------------- 汇总报告 ----------------
 print_summary() {
@@ -766,12 +614,18 @@ print_summary() {
   echo "  ✅ vps-setup 执行完成"
   echo "=================================================="
   [[ -f "$LOG_FILE" ]] && echo "  完整日志: $LOG_FILE"
-  echo "  已安装环境:"
-  for cmd in node python3 docker go git zsh; do
+  echo "  已启用模块:"
+  printf "    - %s\n" "swap / bbr / reboot(每日4点重启) / ssh(端口${SSH_PORT}) / zsh"
+  echo "  已安装关键工具:"
+  for cmd in git zsh; do
     if command_exists "$cmd"; then
       printf "    - %-8s %s\n" "$cmd" "$($cmd --version 2>/dev/null | head -n1)"
     fi
   done
+  if swapon --show 2>/dev/null | grep -q .; then echo "    - swapfile   已启用"; fi
+  local cc
+  cc=$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null || echo "n/a")
+  echo "    拥塞控制:   $cc"
   echo "=================================================="
 }
 
@@ -794,13 +648,6 @@ main() {
   setup_daily_reboot
   setup_ssh
   install_zsh
-  install_basic_tools
-  install_docker
-  install_node
-  install_python
-  install_go
-  setup_firewall
-  install_fail2ban
 
   print_summary
 }

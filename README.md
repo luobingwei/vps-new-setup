@@ -1,6 +1,6 @@
 # vps-setup
 
-一键为**新买的 VPS** 初始化环境。内置常用 VPS 部署的 5 步操作，其余常用开发/安全环境按需开关。支持 Debian/Ubuntu、CentOS/Rocky/Alma/Fedora。
+一键为**新买的 VPS** 初始化环境。内置常用 VPS 部署的 5 步操作。支持 Debian/Ubuntu、CentOS/Rocky/Alma/Fedora。
 
 ## 核心 5 步
 
@@ -11,18 +11,6 @@
 | reboot | 每天凌晨 4 点自动重启 | 写入 crontab，幂等 |
 | ssh | 从 GitHub 拉公钥 + 改端口 + 仅密钥登录 | 用户名交互输入，默认端口 2222 |
 | zsh | Zsh + Oh My Zsh + powerlevel10k，应用配置、跳过向导 | 默认通用配置，可放自己的 |
-
-## 可选模块（按需开关）
-
-| 模块 | 说明 | 默认 |
-|------|------|------|
-| basic | curl/wget/git/vim/htop/tmux/jq 等基础工具 | ✅ |
-| docker | Docker + Docker Compose，并把当前用户加入 docker 组 | ✅ |
-| node | 通过 nvm 安装 Node.js（lts / latest / 指定版本） | ✅ |
-| python | Python3 + pip + venv | ✅ |
-| go | Go 语言（自动识别架构） | ⭕ |
-| firewall | UFW/firewalld，自动放行 SSH 端口（含修改后的端口） | ✅ |
-| fail2ban | 防暴力破解 | ✅ |
 
 ## 使用方法
 
@@ -42,9 +30,19 @@ bash setup.sh -m swap,ssh,zsh     # 只跑指定模块
 bash setup.sh --dry-run           # 预览将要执行的操作
 ```
 
+**一行安装（GitHub 已发布后）**：
+```bash
+curl -fsSL https://raw.githubusercontent.com/luobingwei/vps-new-setup/main/setup.sh | sudo bash
+```
+
 **运行前自动预检环境**：工具会先检查必需工具（curl/wget/git/sysctl/crontab 等），**缺失的会自动用包管理器安装好**（比如 git、curl），装不上才报错停止；同时检查磁盘空间能否支撑 swap——保证一台全新 VPS 能顺利跑起来。
 
-**交互式勾选菜单（默认）**：直接 `bash setup.sh` 会弹出模块清单（默认按配置勾选），用**空格**勾选/取消、**Tab** 切换、**回车**确认，只安装你勾选的部分。系统有 `whiptail` 时用图形勾选界面，没有则自动降级为纯文字菜单（输序号切换、`a` 全选、`n` 全不选、`q` 确认）。
+**交互式勾选菜单（默认）**：直接 `bash setup.sh` 会弹出模块清单（默认按配置勾选），用**空格**勾选/取消、**Tab** 切换、**回车**确认，只安装你勾选的部分。系统有 `whiptail` 时用图形勾选界面，没有则自动降级为纯文字菜单。
+
+> **终端渲染异常（网页/VNC 控制台出现 `^[[B` 等乱码）**：脚本会自动兜底设置 `TERM`；若仍异常，可强制用纯文字菜单：
+> ```bash
+> VPS_SETUP_MENU=plain bash setup.sh     # 纯文字菜单：输入序号切换，a 全选，n 全不选，q 确认
+> ```
 
 **SSH 公钥用户名**：默认不带任何用户名。交互运行时会提示输入 GitHub 用户名（拉取 `https://github.com/<用户名>.keys`）；**未输入、或用户名拉不到公钥时，自动跳过 SSH 配置**（不改端口、不禁密码），不阻塞其他模块。
 
@@ -84,7 +82,7 @@ ZSH_PLUGINS="git zsh-autosuggestions zsh-syntax-highlighting zsh-history-substri
 - **SSH 模块**会改端口并禁用密码登录。运行前请确认：
   - 你的 GitHub 账号的 `https://github.com/<用户名>.keys` 已配置 SSH 公钥；
   - 脚本执行后，**保持当前连接，另开终端用新端口测试成功再断开**。
-- 端口 2222 已在防火墙模块中自动放行。
+- 端口 2222 需在系统防火墙（云服务商安全组 / 本机 UFW/firewalld）中自行放行。
 
 ## 兼容性
 

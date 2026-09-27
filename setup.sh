@@ -20,7 +20,13 @@
 # ============================================================
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# 兼容管道运行（curl ... | bash -s）：此时 BASH_SOURCE[0] 为空，退回当前目录。
+# 管道方式下没有 conf/ 目录，配置一律用默认值；p10k 用内置默认配置。
+if [[ -n "${BASH_SOURCE[0]:-}" ]]; then
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+else
+  SCRIPT_DIR="$(pwd)"
+fi
 CONF_FILE="${SCRIPT_DIR}/conf/setup.conf"
 LOG_FILE="/var/log/vps-setup.log"
 
@@ -174,12 +180,14 @@ check_environment() {
         exit 1
       }
     fi
-    # 复查
-    local -a still=()
-    for c in "${missing[@]}"; do command_exists "$c" || still+=("$c"); done
-    if [[ "${#still[@]}" -gt 0 ]]; then
-      err "仍有工具缺失: ${still[*]}，无法继续。"
-      exit 1
+    # 复查（dry-run 未真正安装，跳过失败判定，只提示将安装哪些）
+    if ! $DRY_RUN; then
+      local -a still=()
+      for c in "${missing[@]}"; do command_exists "$c" || still+=("$c"); done
+      if [[ "${#still[@]}" -gt 0 ]]; then
+        err "仍有工具缺失: ${still[*]}，无法继续。"
+        exit 1
+      fi
     fi
   fi
 
